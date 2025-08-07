@@ -1,0 +1,163 @@
+# --- Make sure you are using the correct project ---
+gcloud config set project omer-playground-440310
+
+# --- Create the service account ---
+gcloud iam service-accounts create events-etl-sa \
+    --display-name="Events ETL Pipeline Service Account"
+
+# --- Get the full email address of your new service account ---
+SA_EMAIL=$(gcloud iam service-accounts list --filter="displayName='Events ETL Pipeline Service Account'" --format='value(email)')
+
+# --- Grant permissions to the service account ---
+
+# 1. For Terraform: To create/manage BigQuery datasets and tables
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/bigquery.admin"
+
+# 2. For the Cloud Function: To read/write files in Cloud Storage
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/storage.objectAdmin"
+
+# 3. For the Cloud Function: To run load/query jobs in BigQuery
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/bigquery.jobUser"
+
+# 4. For the Cloud Function: To edit data in BigQuery tables
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/bigquery.dataEditor"
+
+# 5. For the Cloud Function (2nd Gen): To act as an Eventarc event receiver
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/eventarc.eventReceiver"
+
+events-etl-sa@omer-playground-440310.iam.gserviceaccount.com
+
+# Final Deployment Command
+gcloud functions deploy etl-events-pipeline \
+--gen2 \
+--runtime python39 \
+--trigger-bucket omer-playground-440310-events-landing \
+--entry-point run_etl_pipeline \
+--region us-central1 \
+--service-account "events-etl-sa@omer-playground-440310.iam.gserviceaccount.com" \
+--timeout 540s \
+--memory 1Gi \
+--source=. \
+--set-env-vars BIGQUERY_DATASET=events_analytics_prod,ARCHIVE_BUCKET=omer-playground-440310-events-archive
+
+
+
+gcloud projects describe omer-playground-440310 --format='value(projectNumber)'
+
+Step 2: Grant the Correct Role to the Eventarc Service Account
+
+Now, construct the full service account name and grant it the required role. The Eventarc service account always follows the format service-<PROJECT_NUMBER>@gcp-sa-eventarc.iam.gserviceaccount.com.
+
+Generated bash
+# --- IMPORTANT: Replace <PROJECT_NUMBER> with the number from Step 1 ---
+PROJECT_NUMBER="832175990228"
+
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com" \
+    --role="roles/eventarc.serviceAgent"
+After you run this command, Eventarc will have the necessary permissions to validate and connect to your GCS bucket trigger.
+
+---
+
+### Addressing the Other Warnings (Good Housekeeping)
+
+Before you redeploy, let's look at the two warnings.
+
+**1. The Cloud Build Warning**
+`WARNING: The default build service account [...] is missing the [roles/cloudbuild.builds.builder] role.`
+
+*   **What it means:** When you deploy a function, a service called Cloud Build compiles your code and packages it into a container. The service account that performs this build needs a specific role.
+*   **The Fix:** The warning gives you the exact command to run. **It is highly recommended you run this** to prevent future deployment issues.
+
+```bash
+# This command is provided directly in your error output. Run it.
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+ --member=serviceAccount:832175990228-compute@developer.gserviceaccount.com \
+ --role=roles/cloudbuild.builds.builder
+
+
+2. The Python 3.9 Deprecation Warning
+WARNING: Python 3.9 is no longer supported by the Python community as of 5 October, 2025.
+
+What it means: This is just an informational warning. Your code will still run perfectly fine for now. Google is just letting you know that you should plan to upgrade your runtime in the future.
+
+The Fix (For Later): No immediate action is needed. When you decide to upgrade, you would change --runtime python39 to --runtime python311 (or a newer supported version) in your deployment command.
+
+Your Final Plan of Action
+
+Fix Permissions: Run the two gcloud projects add-iam-policy-binding commands above (the one for eventarc.serviceAgent and the one for cloudbuild.builds.builder).
+
+Re-deploy: Run your exact same gcloud functions deploy command again. You added the --source=. flag, which is good practice.
+
+Your command should now work without the 403 error.
+
+Generated bash
+# This is the command to run again AFTER fixing the permissions
+gcloud functions deploy etl-events-pipeline \
+--gen2 \
+--runtime python39 \
+--trigger-bucket events-landing \
+--entry-point run_etl_pipeline \
+--region us-central1 \
+--service-account "events-etl-sa@omer-playground-440310.iam.gserviceaccount.com" \
+--timeout 540s \
+--memory 1Gi \
+--source=. \
+--set-env-vars BIGQUERY_DATASET=events_analytics_prod,ARCHIVE_BUCKET=events-archive,GCP_PROJECT=omer-playground-440310
+
+
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+    --member="$EVENTARC_SA" \
+    --role="roles/eventarc.serviceAgent"
+
+gsutil iam ch \
+  serviceAccount:service-832175990228@gcp-sa-eventarc.iam.gserviceaccount.com:roles/storage.objectViewer \
+  gs://events-landing
+
+gsutil iam ch \
+  serviceAccount:service-832175990228@gcp-sa-eventarc.iam.gserviceaccount.com:roles/storage.admin \
+  gs://events-landing
+
+gcloud projects add-iam-policy-binding omer-playground-440310 \
+--member="serviceAccount:service-832175990228@gs-project-accounts.iam.gserviceaccount.com" \
+--role="roles/pubsub.publisher"
+
+gcloud functions add-iam-policy-binding etl-events-pipeline \
+    --region=us-central1 \
+    --member="allUsers" \
+    --role="roles/run.invoker"
+
+
+dim_time population query =>-- This script should be run ONLY ONCE to pre-fill your time dimension.
+-- It populates the table with every day from Jan 1, 2020, to Dec 31, 2030.
+
+INSERT INTO `omer-playground-440310.events_analytics_prod.dim_time` 
+  (time_id, date, year, quarter, month, month_name, day, day_of_week, day_name, is_weekend)
+SELECT
+    -- Create a smart integer key like 20250801 for the date '2025-08-01'
+    CAST(FORMAT_DATE('%Y%m%d', date_col) AS INT64) AS time_id,
+    
+    date_col AS date,
+    
+    -- Extract all the useful parts of the date
+    EXTRACT(YEAR FROM date_col) AS year,
+    EXTRACT(QUARTER FROM date_col) AS quarter,
+    EXTRACT(MONTH FROM date_col) AS month,
+    FORMAT_DATE('%B', date_col) AS month_name, -- e.g., 'August'
+    EXTRACT(DAY FROM date_col) AS day,
+    EXTRACT(DAYOFWEEK FROM date_col) AS day_of_week, -- 1=Sunday, 7=Saturday
+    FORMAT_DATE('%A', date_col) AS day_name, -- e.g., 'Friday'
+    EXTRACT(DAYOFWEEK FROM date_col) IN (1, 7) AS is_weekend -- A TRUE/FALSE flag
+FROM
+    -- This function generates a list of every single day in the specified range
+    UNNEST(GENERATE_DATE_ARRAY('2020-01-01', '2030-12-31', INTERVAL 1 DAY)) AS date_col;
