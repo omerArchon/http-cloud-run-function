@@ -2,3 +2,6 @@ pandas
 gcsfs
 google-cloud-bigquery
 google-cloud-storage
+pyarrow
+requests
+functions-framework==3.*

@@ -13,7 +13,7 @@ variable "gcp_region" {
 variable "dataset_id" {
   type        = string
   description = "The ID for the BigQuery dataset."
-  default     = "events_analytics_prod" 
+  default     = "events_analytics_api" 
 }
 
 variable "dataset_location" {
