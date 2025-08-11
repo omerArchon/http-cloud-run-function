@@ -1,19 +1,19 @@
 # --- 1. BIGQUERY DATASET ---
 resource "google_bigquery_dataset" "analytics_dataset" {
-  project                     = var.gcp_project_id
-  dataset_id                  = var.dataset_id
-  friendly_name               = "Events Star Schema"
-  description                 = "Dataset for events analytics with a fact and dimension model, managed by Terraform."
-  location                    = var.dataset_location
-  delete_contents_on_destroy  = true # Set to false in production
+  project                    = var.gcp_project_id
+  dataset_id                 = var.dataset_id
+  friendly_name              = "Events Star Schema"
+  description                = "Dataset for events analytics with a fact and dimension model, managed by Terraform."
+  location                   = var.dataset_location
+  delete_contents_on_destroy = true # Set to false in production
 }
 
 # --- 2. STAGING TABLE ---
 resource "google_bigquery_table" "staging_raw_events" {
-  project     = google_bigquery_dataset.analytics_dataset.project
-  dataset_id  = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id    = "staging_raw_events"
-  description = "Staging table for pre-processed event data. Data is ephemeral and overwritten on each run."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "staging_raw_events"
+  description         = "Staging table for pre-processed event data. Data is ephemeral and overwritten on each run."
   deletion_protection = false
 
   schema = <<EOF
@@ -43,12 +43,12 @@ EOF
 # --- 3. DIMENSION TABLES ---
 
 resource "google_bigquery_table" "dim_user" {
-  project    = google_bigquery_dataset.analytics_dataset.project
-  dataset_id = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id   = "dim_user"
-  description = "Dimension: Stores unique users."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "dim_user"
+  description         = "Dimension: Stores unique users."
   deletion_protection = false
-  schema = <<EOF
+  schema              = <<EOF
 [
   {"name": "user_sk", "type": "INT64", "mode": "REQUIRED", "description": "Surrogate key for the user, used for performant joins."},
   {"name": "user_id", "type": "STRING", "mode": "NULLABLE", "description": "The original unique user identifier from the event source (GUID)."}
@@ -56,12 +56,12 @@ resource "google_bigquery_table" "dim_user" {
 EOF
 }
 resource "google_bigquery_table" "dim_content" {
-  project     = google_bigquery_dataset.analytics_dataset.project
-  dataset_id  = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id    = "dim_content"
-  description = "Dimension: Stores unique content pages and their attributes."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "dim_content"
+  description         = "Dimension: Stores unique content pages and their attributes."
   deletion_protection = false
-  schema = <<EOF
+  schema              = <<EOF
 [
   {"name": "content_sk", "type": "INT64", "mode": "REQUIRED", "description": "Surrogate key for the content, used for performant joins."},
   {"name": "url", "type": "STRING", "mode": "NULLABLE", "description": "The full URL of the content page. This now serves as the natural key."},
@@ -75,28 +75,27 @@ EOF
 }
 
 resource "google_bigquery_table" "dim_banner" {
-  project    = google_bigquery_dataset.analytics_dataset.project
-  dataset_id = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id   = "dim_banner"
-  description = "Dimension: Stores unique banners and their attributes."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "dim_banner"
+  description         = "Dimension: Stores unique banners and their attributes."
   deletion_protection = false
-  schema = <<EOF
+  schema              = <<EOF
 [
   {"name": "banner_sk", "type": "INT64", "mode": "REQUIRED", "description": "Surrogate key for the banner, used for performant joins."},
   {"name": "banner_name", "type": "STRING", "mode": "NULLABLE", "description": "The name part of the banner, extracted from the raw banner_id (e.g., 'unity_finance')."},
-  {"name": "banner_size", "type": "STRING", "mode": "NULLABLE", "description": "The dimension part of the banner, extracted from the raw banner_id (e.g., '300x600')."},
-  {"name": "element_id", "type": "STRING", "mode": "NULLABLE", "description": "The specific interactive element within the banner (e.g., 'btn1'). NULL if the event is on the banner itself."}
+  {"name": "banner_size", "type": "STRING", "mode": "NULLABLE", "description": "The dimension part of the banner, extracted from the raw banner_id (e.g., '300x600')."}
 ]
 EOF
 }
 
 resource "google_bigquery_table" "dim_location" {
-  project    = google_bigquery_dataset.analytics_dataset.project
-  dataset_id = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id   = "dim_location"
-  description = "Dimension: Stores unique geographic locations based on IP address."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "dim_location"
+  description         = "Dimension: Stores unique geographic locations based on IP address."
   deletion_protection = false
-  schema = <<EOF
+  schema              = <<EOF
 [
   {"name": "location_sk", "type": "INT64", "mode": "REQUIRED", "description": "Surrogate key for the location, used for performant joins."},
   {"name": "ip_address", "type": "STRING", "mode": "NULLABLE", "description": "The unique IP address of the user. This is the natural key."},
@@ -107,10 +106,10 @@ EOF
 }
 
 resource "google_bigquery_table" "dim_time" {
-  project     = google_bigquery_dataset.analytics_dataset.project
-  dataset_id  = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id    = "dim_time"
-  description = "Pre-populated dimension table for dates from 2020 to 2030."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "dim_time"
+  description         = "Pre-populated dimension table for dates from 2020 to 2030."
   deletion_protection = false
 
   schema = <<EOF
@@ -131,10 +130,10 @@ EOF
 
 # --- 4. FACT TABLE ---
 resource "google_bigquery_table" "fact_events" {
-  project     = google_bigquery_dataset.analytics_dataset.project
-  dataset_id  = google_bigquery_dataset.analytics_dataset.dataset_id
-  table_id    = "fact_events"
-  description = "Fact table for all user interaction events, linking all dimensions."
+  project             = google_bigquery_dataset.analytics_dataset.project
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "fact_events"
+  description         = "Fact table for all user interaction events, linking all dimensions."
   deletion_protection = false
 
   time_partitioning {
@@ -154,6 +153,7 @@ resource "google_bigquery_table" "fact_events" {
   {"name": "banner_sk", "type": "INT64", "mode": "NULLABLE", "description": "Foreign key linking to the dim_banner table."},
   {"name": "location_sk", "type": "INT64", "mode": "NULLABLE", "description": "Foreign key linking to the dim_location table."},
   {"name": "event_name", "type": "STRING", "mode": "NULLABLE", "description": "The name of the event (e.g., 'click', 'dwell')."},
+  {"name": "element_id", "type": "STRING", "mode": "NULLABLE", "description": "The specific interactive element within the banner (e.g., 'btn1'). NULL if the event is on the banner itself."},
   {"name": "unit_name", "type": "STRING", "mode": "NULLABLE", "description": "The unit of measurement for the event's value (e.g., 'seconds', 'pixels', 'count')."},
   {"name": "unit_value", "type": "FLOAT64", "mode": "NULLABLE", "description": "The numeric value associated with the event and its unit_name."}
 ]

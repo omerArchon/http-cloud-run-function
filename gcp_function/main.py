@@ -152,24 +152,22 @@ def run_transformation_sql():
         """,
         
         # 3. Populate dim_banner
-        # Merges new banner variations based on the composite key of name, size, and element_id.
+        # Merges new banner variations based on the composite key of name and size.
         f"""
         MERGE `{PROJECT_ID}.{DATASET_ID}.dim_banner` T
         USING (
-            SELECT DISTINCT banner_name, banner_size, element_id
+            SELECT DISTINCT banner_name, banner_size
             FROM `{PROJECT_ID}.{DATASET_ID}.{STAGING_TABLE_ID}`
             WHERE banner_name IS NOT NULL
         ) S
         ON T.banner_name = S.banner_name 
-           AND COALESCE(T.banner_size, '') = COALESCE(S.banner_size, '') 
-           AND COALESCE(T.element_id, '') = COALESCE(S.element_id, '')
+           AND COALESCE(T.banner_size, '') = COALESCE(S.banner_size, '')
         WHEN NOT MATCHED THEN
-          INSERT (banner_sk, banner_name, banner_size, element_id)
+          INSERT (banner_sk, banner_name, banner_size)
           VALUES(
-            FARM_FINGERPRINT(CONCAT(S.banner_name, COALESCE(S.banner_size, ''), COALESCE(S.element_id, ''))), 
+            FARM_FINGERPRINT(CONCAT(S.banner_name, COALESCE(S.banner_size, ''))), 
             S.banner_name, 
-            S.banner_size, 
-            S.element_id
+            S.banner_size
           );
         """,
         
@@ -200,7 +198,7 @@ def run_transformation_sql():
         # This is an INSERT statement that looks up all foreign keys from the dimensions.
         f"""
         INSERT INTO `{PROJECT_ID}.{DATASET_ID}.fact_events` 
-          (event_id, event_timestamp, time_sk, user_sk, content_sk, banner_sk, location_sk, event_name, unit_name, unit_value)
+          (event_id, event_timestamp, time_sk, user_sk, content_sk, banner_sk, location_sk, event_name, element_id, unit_name, unit_value)
         SELECT
           s.id AS event_id,
           
@@ -216,9 +214,9 @@ def run_transformation_sql():
           
           -- Measures and Event Details --
           s.event AS event_name,
+          s.element_id,
           s.unit_name,
           s.unit_value
-          
         FROM `{PROJECT_ID}.{DATASET_ID}.{STAGING_TABLE_ID}` s
 
         -- Join to pre-populated dim_time by calculating the YYYYMMDD key from the event's issue_date.
@@ -232,7 +230,6 @@ def run_transformation_sql():
         LEFT JOIN `{PROJECT_ID}.{DATASET_ID}.dim_banner` b ON 
             b.banner_name = s.banner_name 
             AND COALESCE(b.banner_size, '') = COALESCE(s.banner_size, '') 
-            AND COALESCE(b.element_id, '') = COALESCE(s.element_id, '')
             
         -- This WHERE clause ensures we only insert events that are not already in the fact table, making the pipeline idempotent.
         WHERE s.id IS NOT NULL 
@@ -293,10 +290,6 @@ def process_banner_events(request):
     try:
         run_transformation_sql()
         print("Successfully transformed data and populated all dimension and fact tables.")
-    except Exception as e:
-        print(f"Error: SQL transformation failed: {e}")
-        return f"SQL Transform Error: {e}", 500
-    
     except Exception as e:
         print(f"Error: SQL transformation failed: {e}")
         return f"SQL Transform Error: {e}", 500

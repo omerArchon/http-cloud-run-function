@@ -1,7 +1,7 @@
 variable "gcp_project_id" {
   type        = string
   description = "The Google Cloud project ID to deploy resources into."
-  default     = "omer-playground-440310" 
+  default     = "omer-playground-440310"
 }
 
 variable "gcp_region" {
@@ -13,7 +13,7 @@ variable "gcp_region" {
 variable "dataset_id" {
   type        = string
   description = "The ID for the BigQuery dataset."
-  default     = "events_analytics_api" 
+  default     = "events_analytics_api"
 }
 
 variable "dataset_location" {

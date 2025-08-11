@@ -182,7 +182,7 @@ dmypy.json
 # Google Cloud SDK
 .gcloud/
 .config/gcloud/
-
+.gcloudignore
 # Google Cloud Functions
 .gcp_function_deployment/
 
